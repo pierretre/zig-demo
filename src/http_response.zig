@@ -7,10 +7,8 @@ pub const HttpResponse = struct {
         return HttpResponse{ .writer = writer };
     }
 
-    pub fn send200(self: *HttpResponse, content: []const u8) !void {
-        try self.writer.writeAll("HTTP/1.1 200 OK\r\nContent-Length: ");
-        try self.writer.print("{}\r\n\r\n", .{content.len});
-        try self.writer.writeAll(content);
+    pub fn send200(self: *HttpResponse, content: []u8, size: usize) !void {
+        try self.writer.print("HTTP/1.1 200 OK\r\nContent-Length: {d}\r\n\r\n{s}", .{ size, content });
     }
 
     pub fn send404(self: *HttpResponse) !void {
@@ -18,7 +16,11 @@ pub const HttpResponse = struct {
     }
 
     pub fn send405(self: *HttpResponse) !void {
-        try self.writer.writeAll("TODO : 405 Method Not Allowed"); // TODO
+        try self.writer.writeAll("HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/plain\r\nContent-Length: 28\r\n\r\n405 Method Not Allowed");
+    }
+
+    pub fn send413(self: *HttpResponse) !void {
+        try self.writer.writeAll("HTTP/1.1 413 Entity Too Large\r\nContent-Type: text/plain\r\nContent-Length: 30\r\n\r\n413 Entity Too Large");
     }
 
     pub fn send500(self: *HttpResponse) !void {

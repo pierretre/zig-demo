@@ -1,9 +1,9 @@
 const std = @import("std");
 const HttpResponse = @import("http_response.zig").HttpResponse;
 const HttpRequest = @import("http_request.zig").HttpRequest;
-const HttpError = @import("errors.zig").HttpError;
+const errors = @import("errors.zig");
 
-const PORT = @import("constants.zig").PORT;
+const constants = @import("constants.zig");
 
 pub fn processRequest(server: *std.net.Server) !void {
     var client = try server.accept();
@@ -13,28 +13,28 @@ pub fn processRequest(server: *std.net.Server) !void {
     const client_writer = client.stream.writer();
     var response = HttpResponse.init(client_writer.any());
 
-    var request_buffer: [1024]u8 = undefined;
+    var request_buffer: [constants.MAX_REQUEST_SIZE]u8 = undefined;
     const request_size = try client_reader.read(request_buffer[0..]);
 
-    _ = HttpRequest.init(request_buffer[0..request_size]) catch |err| switch (err) {
-        error.HttpMethodNotAllowed => {
-            try response.send405();
-            return;
-        },
-        else => {
-            std.debug.print("Found error {}", .{err});
-        },
+    var request = HttpRequest.init(request_buffer[0..request_size]) catch |err| {
+        try errors.handleError(err, &response);
+        return;
     };
 
-    // Temporarly send 200 OK
-    try response.send200("TEST");
+    var buffer: [constants.MAX_RESPONSE_SIZE]u8 = undefined;
+    const length = request.process(&buffer) catch |err| {
+        try errors.handleError(err, &response);
+        return;
+    };
+
+    try response.send200(&buffer, length);
 }
 
 pub fn main() !void {
-    const addr = std.net.Address.initIp4(.{ 0, 0, 0, 0 }, PORT);
+    const addr = std.net.Address.initIp4(.{ 0, 0, 0, 0 }, constants.PORT);
     var server = try addr.listen(.{});
 
-    std.log.info("Server listening on port {d}", .{PORT});
+    std.log.info("Server listening on port {d}", .{constants.PORT});
 
     while (true) {
         processRequest(&server) catch |err| {
