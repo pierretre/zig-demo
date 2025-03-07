@@ -22,19 +22,17 @@ pub fn processRequest(server: *std.net.Server) !void {
     var request_buffer: [constants.MAX_REQUEST_SIZE]u8 = undefined;
     const request_size = try client_reader.read(request_buffer[0..]);
 
-    var request = HttpRequest.init(request_buffer[0..request_size]) catch |err| {
-        try errors.handleError(err, &response, return_headers);
+    var request = HttpRequest.init(request_buffer[0..request_size], &response) catch |err| {
+        try errors.handleError(err, &response, &return_headers);
         return;
     };
 
     var buffer: [constants.MAX_RESPONSE_SIZE]u8 = undefined;
 
     request.process(&buffer, &return_headers) catch |err| {
-        try errors.handleError(err, &response, return_headers);
+        try errors.handleError(err, &response, &return_headers);
         return;
     };
-
-    try response.send200(&buffer, return_headers);
 }
 
 pub fn main() !void {

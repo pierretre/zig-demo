@@ -11,7 +11,7 @@ pub const HttpError = error{
     HttpEntityTooLarge,
 };
 
-pub fn handleError(err: anyerror, response: *HttpResponse, return_headers: std.ArrayList([]const u8)) !void {
+pub fn handleError(err: anyerror, response: *HttpResponse, return_headers: *std.ArrayList([]const u8)) !void {
     switch (err) {
         error.FileNotFound => {
             try response.send404(return_headers);

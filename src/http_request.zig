@@ -1,5 +1,6 @@
 const std = @import("std");
 const constants = @import("constants.zig");
+const HttpResponse = @import("http_response.zig").HttpResponse;
 const HttpError = @import("errors.zig").HttpError;
 const ArrayList = std.ArrayList;
 
@@ -25,8 +26,9 @@ pub const HttpRequest = struct {
     headers: ArrayList([]const u8),
     body: []const u8,
     content_length: usize,
+    response: *HttpResponse,
 
-    pub fn init(request: []const u8) anyerror!HttpRequest {
+    pub fn init(request: []const u8, response: *HttpResponse) anyerror!HttpRequest {
         var it_lines = std.mem.splitSequence(u8, request, "\r\n");
 
         var method: HttpMethod = undefined;
@@ -72,7 +74,7 @@ pub const HttpRequest = struct {
             }
         }
 
-        return HttpRequest{ .method = method, .target = target, .headers = headers, .body = body, .content_length = content_length };
+        return HttpRequest{ .method = method, .target = target, .headers = headers, .body = body, .content_length = content_length, .response = response };
     }
 
     pub fn process(self: *HttpRequest, buffer: []u8, return_headers: *ArrayList([]const u8)) !void {
@@ -95,13 +97,24 @@ pub const HttpRequest = struct {
         // In case the file is not found, while return 404 Not Found :
         const file = try std.fs.cwd().openFile(full_path, .{});
         defer file.close();
+        const file_stat = try file.stat();
+        const file_size = file_stat.size;
 
         const content_type = getContentType(route);
         try appendHeader(return_headers, "Content-Type", content_type);
 
         var length_buf: [20]u8 = undefined;
-        const content_length: []const u8 = try std.fmt.bufPrint(&length_buf, "{d}", .{try file.readAll(buffer)});
+        const content_length: []const u8 = try std.fmt.bufPrint(&length_buf, "{d}", .{file_size});
         try appendHeader(return_headers, "Content-Length", content_length);
+
+        // Write file content to client until all content is read
+        var resp = try self.response.sendLarge200(return_headers);
+        var written_size: usize = 0;
+        while (written_size < file_size) {
+            written_size += try file.pread(buffer, written_size);
+
+            try resp.write(buffer);
+        }
     }
 
     fn appendHeader(headers: *ArrayList([]const u8), name: []const u8, value: anytype) !void {
