@@ -4,7 +4,7 @@ A quick demonstration of Zig programming language. The aim is to review the basi
 I chose to develop a simple http server from scratch including basic functionalities as:
 * Loading static files
 * Error managment
-* More to come ...
+* More to come ... (file browser, ftp compliance)
 
 If you want to know more about starting your own project, read [this](doc/SETUP.md).
 
@@ -66,7 +66,7 @@ zig run src/main.zig
 
     In another terminal :
     ```shell
-    curl localhost:8080
+    curl -X POST localhost:8080 --data TEST
     ```
 
     Result (Client):

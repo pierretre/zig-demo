@@ -31,7 +31,6 @@
         "build.zig",
         "build.zig.zon",
         "src",
-        "static",
         // For example...
         //"LICENSE",
         //"README.md",
