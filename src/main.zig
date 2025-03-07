@@ -1,4 +1,5 @@
 const std = @import("std");
+const ArrayList = @import("std").ArrayList;
 const HttpResponse = @import("http_response.zig").HttpResponse;
 const HttpRequest = @import("http_request.zig").HttpRequest;
 const errors = @import("errors.zig");
@@ -6,6 +7,8 @@ const errors = @import("errors.zig");
 const constants = @import("constants.zig");
 
 pub fn processRequest(server: *std.net.Server) !void {
+    const gpa = std.heap.page_allocator;
+
     var client = try server.accept();
     defer client.stream.close();
 
@@ -13,21 +16,25 @@ pub fn processRequest(server: *std.net.Server) !void {
     const client_writer = client.stream.writer();
     var response = HttpResponse.init(client_writer.any());
 
+    var return_headers = ArrayList([]const u8).init(gpa);
+    defer for (return_headers.items) |header| gpa.free(header);
+
     var request_buffer: [constants.MAX_REQUEST_SIZE]u8 = undefined;
     const request_size = try client_reader.read(request_buffer[0..]);
 
     var request = HttpRequest.init(request_buffer[0..request_size]) catch |err| {
-        try errors.handleError(err, &response);
+        try errors.handleError(err, &response, return_headers);
         return;
     };
 
     var buffer: [constants.MAX_RESPONSE_SIZE]u8 = undefined;
-    const length = request.process(&buffer) catch |err| {
-        try errors.handleError(err, &response);
+
+    request.process(&buffer, &return_headers) catch |err| {
+        try errors.handleError(err, &response, return_headers);
         return;
     };
 
-    try response.send200(&buffer, length);
+    try response.send200(&buffer, return_headers);
 }
 
 pub fn main() !void {

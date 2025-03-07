@@ -22,7 +22,6 @@ const HttpMethod = enum {
 pub const HttpRequest = struct {
     method: HttpMethod,
     target: []const u8,
-    // protocol: []const u8,
     headers: ArrayList([]const u8),
     body: []const u8,
     content_length: usize,
@@ -76,19 +75,17 @@ pub const HttpRequest = struct {
         return HttpRequest{ .method = method, .target = target, .headers = headers, .body = body, .content_length = content_length };
     }
 
-    pub fn process(self: *HttpRequest, buffer: []u8) !usize {
+    pub fn process(self: *HttpRequest, buffer: []u8, return_headers: *ArrayList([]const u8)) !void {
         try self.printRequest();
         return switch (self.method) {
             HttpMethod.GET => {
-                return self.get(buffer);
+                try self.get(buffer, return_headers);
             },
-            else => {
-                return 0;
-            },
+            else => {},
         };
     }
 
-    fn get(self: *HttpRequest, buffer: []u8) !usize {
+    fn get(self: *HttpRequest, buffer: []u8, return_headers: *ArrayList([]const u8)) !void {
         var gpa = std.heap.page_allocator;
         const route = if (self.target.len <= 1) "index.html" else self.target;
 
@@ -99,7 +96,29 @@ pub const HttpRequest = struct {
         const file = try std.fs.cwd().openFile(full_path, .{});
         defer file.close();
 
-        return try file.readAll(buffer);
+        const content_type = getContentType(route);
+        try appendHeader(return_headers, "Content-Type", content_type);
+
+        var length_buf: [20]u8 = undefined;
+        const content_length: []const u8 = try std.fmt.bufPrint(&length_buf, "{d}", .{try file.readAll(buffer)});
+        try appendHeader(return_headers, "Content-Length", content_length);
+    }
+
+    fn appendHeader(headers: *ArrayList([]const u8), name: []const u8, value: anytype) !void {
+        const header = try std.fmt.allocPrint(headers.allocator, "{s}: {s}", .{ name, value });
+        try headers.append(header);
+    }
+
+    fn getContentType(path: []const u8) []const u8 {
+        if (std.mem.endsWith(u8, path, ".html")) return "text/html";
+        if (std.mem.endsWith(u8, path, ".css")) return "text/css";
+        if (std.mem.endsWith(u8, path, ".js")) return "application/javascript";
+        if (std.mem.endsWith(u8, path, ".json")) return "application/json";
+        if (std.mem.endsWith(u8, path, ".png")) return "image/png";
+        if (std.mem.endsWith(u8, path, ".jpg") or std.mem.endsWith(u8, path, ".jpeg")) return "image/jpeg";
+        if (std.mem.endsWith(u8, path, ".svg")) return "image/svg+xml";
+        if (std.mem.endsWith(u8, path, ".ico")) return "image/x-icon";
+        return "application/octet-stream";
     }
 
     fn printRequest(self: *HttpRequest) !void {
@@ -117,5 +136,5 @@ test "HttpMethod.GET from string" {
 }
 
 test "error.HttpMethodNotAllowed from string" {
-    try std.testing.expectError(HttpError.HttpMethodNotAllowed, HttpMethod.fromString("UNKNONW"));
+    try std.testing.expectError(HttpError.HttpMethodNotAllowed, HttpMethod.fromString("UNKNOWN"));
 }

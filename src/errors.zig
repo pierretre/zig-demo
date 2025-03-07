@@ -11,20 +11,20 @@ pub const HttpError = error{
     HttpEntityTooLarge,
 };
 
-pub fn handleError(err: anyerror, response: *HttpResponse) !void {
+pub fn handleError(err: anyerror, response: *HttpResponse, return_headers: std.ArrayList([]const u8)) !void {
     switch (err) {
         error.FileNotFound => {
-            try response.send404();
+            try response.send404(return_headers);
         },
         error.HttpMethodNotAllowed => {
-            try response.send405();
+            try response.send405(return_headers);
         },
         error.HttpEntityTooLarge => {
-            try response.send413();
+            try response.send413(return_headers);
         },
         else => {
             std.debug.print("Found error {}", .{err});
-            try response.send500();
+            try response.send500(return_headers);
         },
     }
 }
